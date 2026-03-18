@@ -1,0 +1,32 @@
+# ========================
+# Java NetBeans .gitignore
+# ========================
+
+# --- Compiled Java class files ---
+*.class
+
+# --- Build output ---
+build/
+dist/
+
+# --- NetBeans private config (user-specific) ---
+nbproject/private/
+
+# --- Log & temp files ---
+*.log
+*.tmp
+
+# --- Package files ---
+*.jar
+*.war
+*.ear
+
+# --- OS generated files ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- IDE / Editor ---
+*.swp
+*.swo
+*~
