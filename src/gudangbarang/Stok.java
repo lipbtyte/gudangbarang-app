@@ -29,37 +29,41 @@ public class Stok extends javax.swing.JFrame {
     }
 
     private void loadBarang() {
-        try {
-            Connection conn = koneksi.getConnection();
-            Statement stmt = conn.createStatement();
-            String sql = "SELECT kode_barang FROM barang";
-            ResultSet rs = stmt.executeQuery(sql);
+    try {
+        Connection conn = koneksi.getConnection();
+        Statement stmt = conn.createStatement();
+        String sql = "SELECT kode_barang FROM barang";
+        ResultSet rs = stmt.executeQuery(sql);
 
-            cmbPilihBarang.removeAllItems();
-            listKodeBarang.clear();
-
-            while (rs.next()) {
-                String kode = rs.getString("kode_barang");
-                cmbPilihBarang.addItem(kode);
-                listKodeBarang.add(kode);
-            }
-
-            rs.close();
-            stmt.close();
-            conn.close();
-
-            if (cmbPilihBarang.getItemCount() > 0) {
-                cmbPilihBarang.setSelectedIndex(0);
-            }
-            
-            cmbPilihBarang.addActionListener(e -> tampilkanDetailBarang());
-
-        } catch (SQLException e) {
-            javax.swing.JOptionPane.showMessageDialog(this, "Error: " + e.getMessage(), "Error",
-                    javax.swing.JOptionPane.ERROR_MESSAGE);
+        for (java.awt.event.ActionListener al : cmbPilihBarang.getActionListeners()) {
+            cmbPilihBarang.removeActionListener(al);
         }
-    }
 
+        cmbPilihBarang.removeAllItems();
+        listKodeBarang.clear();
+
+        while (rs.next()) {
+            String kode = rs.getString("kode_barang");
+            cmbPilihBarang.addItem(kode);
+            listKodeBarang.add(kode);
+        }
+
+        rs.close();
+        stmt.close();
+        conn.close();
+
+        if (cmbPilihBarang.getItemCount() > 0) {
+            cmbPilihBarang.setSelectedIndex(0);
+        }
+
+        // ✅ Tambah listener hanya sekali setelah bersih
+        cmbPilihBarang.addActionListener(e -> tampilkanDetailBarang());
+
+    } catch (SQLException e) {
+        javax.swing.JOptionPane.showMessageDialog(this, "Error: " + e.getMessage(), "Error",
+                javax.swing.JOptionPane.ERROR_MESSAGE);
+    }
+}
     private void tampilkanDetailBarang() {
         if (cmbPilihBarang.getSelectedItem() == null)
             return;
@@ -132,8 +136,8 @@ public class Stok extends javax.swing.JFrame {
                 conn.close();
 
                 javax.swing.JOptionPane.showMessageDialog(this, "Barang berhasil ditambahkan!");
-                loadBarang();
                 parentMenu.refreshData();
+                this.dispose();
             } catch (NumberFormatException e) {
                 javax.swing.JOptionPane.showMessageDialog(this, "Stok dan Harga harus berupa angka!", "Error",
                         javax.swing.JOptionPane.ERROR_MESSAGE);
@@ -145,57 +149,61 @@ public class Stok extends javax.swing.JFrame {
     }
 
     private void simpanData() {
-        if (cmbPilihBarang.getSelectedItem() == null) {
-            javax.swing.JOptionPane.showMessageDialog(this, "Pilih barang terlebih dahulu!", "Peringatan",
-                    javax.swing.JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        String kodeBarang = cmbPilihBarang.getSelectedItem().toString();
-        String stokBaruStr = TextStokBaru.getText().trim();
-        String tanggal = TextTanggal.getText().trim();
-        String keterangan = TextKeterangan.getText().trim();
-
-        if (stokBaruStr.isEmpty() || tanggal.isEmpty()) {
-            javax.swing.JOptionPane.showMessageDialog(this, "Stok baru dan tanggal harus diisi!", "Peringatan",
-                    javax.swing.JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        try {
-            int stokBaru = Integer.parseInt(stokBaruStr);
-
-            Connection conn = koneksi.getConnection();
-
-            String sqlInsert = "INSERT INTO update_stok (kode_barang, tanggal_update, stok_baru, keterangan) VALUES (?, ?, ?, ?)";
-            PreparedStatement psInsert = conn.prepareStatement(sqlInsert);
-            psInsert.setString(1, kodeBarang);
-            psInsert.setString(2, tanggal);
-            psInsert.setInt(3, stokBaru);
-            psInsert.setString(4, keterangan);
-            psInsert.executeUpdate();
-            psInsert.close();
-
-            String sqlUpdate = "UPDATE barang SET stok = ? WHERE kode_barang = ?";
-            PreparedStatement psUpdate = conn.prepareStatement(sqlUpdate);
-            psUpdate.setInt(1, stokBaru);
-            psUpdate.setString(2, kodeBarang);
-            psUpdate.executeUpdate();
-            psUpdate.close();
-
-            conn.close();
-
-            javax.swing.JOptionPane.showMessageDialog(this, "Stok berhasil diupdate!");
-            parentMenu.refreshData();
-            this.dispose();
-        } catch (NumberFormatException e) {
-            javax.swing.JOptionPane.showMessageDialog(this, "Stok harus berupa angka!", "Error",
-                    javax.swing.JOptionPane.ERROR_MESSAGE);
-        } catch (SQLException e) {
-            javax.swing.JOptionPane.showMessageDialog(this, "Error: " + e.getMessage(), "Error",
-                    javax.swing.JOptionPane.ERROR_MESSAGE);
-        }
+    if (cmbPilihBarang.getSelectedItem() == null) {
+        javax.swing.JOptionPane.showMessageDialog(this, "Pilih barang terlebih dahulu!", "Peringatan",
+                javax.swing.JOptionPane.WARNING_MESSAGE);
+        return;
     }
+
+    String kodeBarang = cmbPilihBarang.getSelectedItem().toString();
+    String stokBaruStr = TextStokBaru.getText().trim();
+    String tanggal = TextTanggal.getText().trim();
+    String keterangan = TextKeterangan.getText().trim();
+
+    if (stokBaruStr.isEmpty() || tanggal.isEmpty()) {
+        javax.swing.JOptionPane.showMessageDialog(this, "Stok baru dan tanggal harus diisi!", "Peringatan",
+                javax.swing.JOptionPane.WARNING_MESSAGE);
+        return;
+    }
+
+    try {
+        int stokBaru = Integer.parseInt(stokBaruStr);
+        Connection conn = koneksi.getConnection();
+        conn.setAutoCommit(false);
+
+        // Log ke update_stok
+        String sqlInsert = "INSERT INTO update_stok (kode_barang, tanggal_update, stok_baru, keterangan) VALUES (?, ?, ?, ?)";
+        PreparedStatement psInsert = conn.prepareStatement(sqlInsert);
+        psInsert.setString(1, kodeBarang);
+        psInsert.setString(2, tanggal);
+        psInsert.setInt(3, stokBaru);
+        psInsert.setString(4, keterangan);
+        psInsert.executeUpdate();
+        psInsert.close();
+
+        // ✅ Update stok saja di tabel barang
+        String sqlUpdate = "UPDATE barang SET stok = ? WHERE kode_barang = ?";
+        PreparedStatement psUpdate = conn.prepareStatement(sqlUpdate);
+        psUpdate.setInt(1, stokBaru);
+        psUpdate.setString(2, kodeBarang);
+        psUpdate.executeUpdate();
+        psUpdate.close();
+
+        conn.commit();
+        conn.close();
+
+        javax.swing.JOptionPane.showMessageDialog(this, "Stok berhasil diupdate!");
+        parentMenu.refreshData();
+        this.dispose();
+
+    } catch (NumberFormatException e) {
+        javax.swing.JOptionPane.showMessageDialog(this, "Stok harus berupa angka!", "Error",
+                javax.swing.JOptionPane.ERROR_MESSAGE);
+    } catch (SQLException e) {
+        javax.swing.JOptionPane.showMessageDialog(this, "Error: " + e.getMessage(), "Error",
+                javax.swing.JOptionPane.ERROR_MESSAGE);
+    }
+}
     @SuppressWarnings("unchecked")
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {
