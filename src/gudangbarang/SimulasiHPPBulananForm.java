@@ -1,8 +1,19 @@
 package gudangbarang;
 
+import com.itextpdf.text.Document;
+import com.itextpdf.text.Element;
+import com.itextpdf.text.FontFactory;
+import com.itextpdf.text.PageSize;
+import com.itextpdf.text.Paragraph;
+import com.itextpdf.text.Phrase;
+import com.itextpdf.text.pdf.PdfPCell;
+import com.itextpdf.text.pdf.PdfPTable;
+import com.itextpdf.text.pdf.PdfWriter;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -15,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
@@ -929,6 +941,14 @@ public class SimulasiHPPBulananForm extends javax.swing.JFrame {
         });
         buttonPanel.add(btnReset);
 
+        btnUnduhPdf = new JButton("Unduh PDF");
+        btnUnduhPdf.setBackground(new Color(33, 150, 243));
+        btnUnduhPdf.setForeground(Color.WHITE);
+        btnUnduhPdf.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btnUnduhPdf.setPreferredSize(new Dimension(120, 40));
+        btnUnduhPdf.addActionListener(e -> unduhPdf());
+        buttonPanel.add(btnUnduhPdf);
+
         btnKembali = new JButton("Kembali");
         btnKembali.setBackground(new Color(158, 158, 158));
         btnKembali.setForeground(Color.WHITE);
@@ -950,6 +970,133 @@ public class SimulasiHPPBulananForm extends javax.swing.JFrame {
         panel.add(lblTotalHPP, BorderLayout.EAST);
 
         return panel;
+    }
+
+    /**
+     * Unduh hasil simulasi dan ringkasan ke dalam file PDF
+     */
+    private void unduhPdf() {
+        if (hasilTableModel.getRowCount() == 0) {
+            JOptionPane.showMessageDialog(this, "Tidak ada data hasil simulasi untuk diunduh!\nSilakan proses simulasi terlebih dahulu.",
+                    "Peringatan", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Simpan PDF Hasil Simulasi");
+        fileChooser.setFileFilter(new FileNameExtensionFilter("PDF Documents", "pdf"));
+        
+        String defaultFileName = "Simulasi_HPP_" + cmbBulan.getSelectedItem().toString() + "_" + cmbTahun.getSelectedItem().toString() + ".pdf";
+        fileChooser.setSelectedFile(new File(defaultFileName));
+
+        int userSelection = fileChooser.showSaveDialog(this);
+        if (userSelection == JFileChooser.APPROVE_OPTION) {
+            File fileToSave = fileChooser.getSelectedFile();
+            String filePath = fileToSave.getAbsolutePath();
+            if (!filePath.toLowerCase().endsWith(".pdf")) {
+                filePath += ".pdf";
+            }
+
+            try {
+                Document document = new Document(PageSize.A4.rotate());
+                PdfWriter.getInstance(document, new FileOutputStream(filePath));
+                document.open();
+
+                // Judul
+                com.itextpdf.text.Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18);
+                Paragraph title = new Paragraph("Laporan Hasil Simulasi HPP Bulanan", titleFont);
+                title.setAlignment(Element.ALIGN_CENTER);
+                title.setSpacingAfter(10);
+                document.add(title);
+                
+                com.itextpdf.text.Font subTitleFont = FontFactory.getFont(FontFactory.HELVETICA, 12);
+                Paragraph subTitle = new Paragraph("Bulan: " + cmbBulan.getSelectedItem().toString() + " " + cmbTahun.getSelectedItem().toString() + " | Metode: " + cmbMetode.getSelectedItem().toString(), subTitleFont);
+                subTitle.setAlignment(Element.ALIGN_CENTER);
+                subTitle.setSpacingAfter(20);
+                document.add(subTitle);
+
+                // Tabel Pencatatan (Kartu Persediaan)
+                com.itextpdf.text.Font sectionFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 14);
+                Paragraph section1 = new Paragraph("Pencatatan HPP (Kartu Persediaan)", sectionFont);
+                section1.setSpacingAfter(10);
+                document.add(section1);
+
+                PdfPTable pdfTableHasil = new PdfPTable(tabelHasil.getColumnCount());
+                pdfTableHasil.setWidthPercentage(100);
+                pdfTableHasil.setSpacingBefore(10f);
+                pdfTableHasil.setSpacingAfter(20f);
+                
+                // Atur lebar relatif kolom agar rapi (ada 10 kolom)
+                // "Hari", "Tanggal", "Jenis", "Barang", "Qty Masuk", "Harga Masuk", "Qty Keluar", "Harga HPP", "Nilai", "Keterangan"
+                float[] columnWidths = {4f, 8f, 10f, 14f, 8f, 10f, 8f, 10f, 12f, 16f};
+                pdfTableHasil.setWidths(columnWidths);
+
+                com.itextpdf.text.Font headerFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10);
+                for (int i = 0; i < tabelHasil.getColumnCount(); i++) {
+                    PdfPCell cell = new PdfPCell(new Phrase(tabelHasil.getColumnName(i), headerFont));
+                    cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+                    cell.setBackgroundColor(com.itextpdf.text.BaseColor.LIGHT_GRAY);
+                    cell.setPaddingBottom(5f);
+                    pdfTableHasil.addCell(cell);
+                }
+
+                com.itextpdf.text.Font cellFont = FontFactory.getFont(FontFactory.HELVETICA, 9);
+                for (int i = 0; i < tabelHasil.getRowCount(); i++) {
+                    for (int j = 0; j < tabelHasil.getColumnCount(); j++) {
+                        Object val = tabelHasil.getValueAt(i, j);
+                        PdfPCell cell = new PdfPCell(new Phrase(val != null ? val.toString() : "", cellFont));
+                        cell.setPaddingBottom(4f);
+                        if (j >= 4 && j <= 8) { // Kolom numerik di-align kanan
+                            cell.setHorizontalAlignment(Element.ALIGN_RIGHT);
+                        } else if (j == 0 || j == 1) { // Hari, Tanggal di-align tengah
+                            cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+                        }
+                        pdfTableHasil.addCell(cell);
+                    }
+                }
+                document.add(pdfTableHasil);
+
+                // Tabel Ringkasan
+                Paragraph section2 = new Paragraph("Ringkasan HPP Bulanan", sectionFont);
+                section2.setSpacingAfter(10);
+                document.add(section2);
+
+                PdfPTable pdfTableRingkasan = new PdfPTable(2);
+                pdfTableRingkasan.setWidthPercentage(50);
+                pdfTableRingkasan.setHorizontalAlignment(Element.ALIGN_LEFT);
+                pdfTableRingkasan.setSpacingBefore(10f);
+
+                for (int i = 0; i < tabelRingkasan.getColumnCount(); i++) {
+                    PdfPCell cell = new PdfPCell(new Phrase(tabelRingkasan.getColumnName(i), headerFont));
+                    cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+                    cell.setBackgroundColor(com.itextpdf.text.BaseColor.LIGHT_GRAY);
+                    cell.setPaddingBottom(5f);
+                    pdfTableRingkasan.addCell(cell);
+                }
+
+                for (int i = 0; i < tabelRingkasan.getRowCount(); i++) {
+                    for (int j = 0; j < tabelRingkasan.getColumnCount(); j++) {
+                        Object val = tabelRingkasan.getValueAt(i, j);
+                        PdfPCell cell = new PdfPCell(new Phrase(val != null ? val.toString() : "", cellFont));
+                        cell.setPaddingBottom(4f);
+                        if (j == 1) {
+                            cell.setHorizontalAlignment(Element.ALIGN_RIGHT);
+                        }
+                        pdfTableRingkasan.addCell(cell);
+                    }
+                }
+                document.add(pdfTableRingkasan);
+
+                document.close();
+                JOptionPane.showMessageDialog(this, "PDF berhasil diunduh ke:\n" + filePath,
+                        "Sukses", JOptionPane.INFORMATION_MESSAGE);
+
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Error saat membuat PDF: " + ex.getMessage(),
+                        "Error", JOptionPane.ERROR_MESSAGE);
+                ex.printStackTrace();
+            }
+        }
     }
 
     // ========== Variables Declaration ==========
@@ -974,6 +1121,7 @@ public class SimulasiHPPBulananForm extends javax.swing.JFrame {
     private JButton btnHapus;
     private JButton btnProses;
     private JButton btnReset;
+    private JButton btnUnduhPdf;
     private JButton btnKembali;
 
     private JTable tabelInput;
